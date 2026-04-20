@@ -9,6 +9,15 @@ description = "A cross-platform reimplementation of the classic Unix beep utilit
 repository = "https://github.com/Elizafox/beep"
 keywords = ["beep", "cli", "audio", "sound", "notification"]
 categories = ["command-line-utilities", "multimedia::audio"]
+include = [
+    "src/**/*",
+    "Cargo.toml",
+    "Cargo.lock",
+    "LICENSE",
+    "README.md",
+    "man/beep.1",
+    "man/beep.1.md",
+]
 
 [dependencies]
 cpal = "0.17.3"

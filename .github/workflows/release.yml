@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross (Linux aarch64 only)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: cargo install cross
+
+      - name: Install ALSA dev headers (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+      - name: Build
+        shell: bash
+        run: |
+          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+            cross build --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+
+      - name: Stage package contents (Unix)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          STAGING="beep-${{ github.ref_name }}-${{ matrix.target }}"
+          mkdir -p "$STAGING/man"
+          cp target/${{ matrix.target }}/release/beep "$STAGING/"
+          cp README.md LICENSE "$STAGING/"
+          cp man/beep.1 "$STAGING/man/"
+          tar czf "$STAGING.tar.gz" "$STAGING"
+
+      - name: Stage package contents (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          STAGING="beep-${{ github.ref_name }}-${{ matrix.target }}"
+          mkdir -p "$STAGING"
+          cp target/${{ matrix.target }}/release/beep.exe "$STAGING/"
+          cp README.md LICENSE "$STAGING/"
+          7z a "$STAGING.zip" "$STAGING"
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            beep-*.tar.gz
+            beep-*.zip
+          fail_on_unmatched_files: false
