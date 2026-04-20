@@ -68,10 +68,14 @@ unsafe fn install_sigpipe() -> nix::Result<()> {
     Ok(())
 }
 
-fn parse_args() -> Result<Vec<Note>, lexopt::Error> {
+fn parse_args_from<I, S>(args: I) -> Result<Vec<Note>, lexopt::Error>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<std::ffi::OsString>,
+{
     let mut notes = Vec::new();
     let mut current = Note::default();
-    let mut parser = Parser::from_env();
+    let mut parser = Parser::from_iter(args);
 
     while let Some(arg) = parser.next()? {
         match arg {
@@ -106,6 +110,10 @@ fn parse_args() -> Result<Vec<Note>, lexopt::Error> {
 
     notes.push(current);
     Ok(notes)
+}
+
+fn parse_args() -> Result<Vec<Note>, lexopt::Error> {
+    parse_args_from(std::env::args_os())
 }
 
 fn print_help() {
@@ -221,4 +229,75 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_note_when_no_args() {
+        let notes = parse_args_from::<_, &str>([]).unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].freq, 440.0);
+        assert_eq!(notes[0].length, 200);
+    }
+
+    #[test]
+    fn last_value_of_repeated_flag_wins() {
+        let notes = parse_args_from(["beep", "-f", "200", "-f", "300"]).unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].freq, 300.0);
+    }
+
+    #[test]
+    fn new_flag_creates_separate_notes() {
+        let notes = parse_args_from(["beep", "-f", "500", "-n", "-f", "800"]).unwrap();
+        assert_eq!(notes.len(), 2);
+        assert_eq!(notes[0].freq, 500.0);
+        assert_eq!(notes[1].freq, 800.0);
+        // second note should have defaults for unspecified fields
+        assert_eq!(notes[1].length, 200);
+    }
+
+    #[test]
+    fn new_flag_resets_to_defaults() {
+        let notes =
+            parse_args_from(["beep", "-f", "500", "-l", "1000", "-n", "-f", "800"]).unwrap();
+        assert_eq!(notes[1].length, 200); // not 1000 from first note
+    }
+
+    #[test]
+    fn lowercase_d_disables_end_delay() {
+        let notes = parse_args_from(["beep", "-d", "50"]).unwrap();
+        assert_eq!(notes[0].delay, 50);
+        assert!(!notes[0].delay_after_last);
+    }
+
+    #[test]
+    fn uppercase_d_enables_end_delay() {
+        let notes = parse_args_from(["beep", "-D", "50"]).unwrap();
+        assert_eq!(notes[0].delay, 50);
+        assert!(notes[0].delay_after_last);
+    }
+
+    #[test]
+    fn mixing_lowercase_d_and_uppercase_d_last_wins() {
+        let notes = parse_args_from(["beep", "-d", "100", "-D", "50"]).unwrap();
+        assert!(notes[0].delay_after_last);
+
+        let notes = parse_args_from(["beep", "-D", "50", "-d", "100"]).unwrap();
+        assert!(!notes[0].delay_after_last);
+    }
+
+    #[test]
+    fn stream_mode_s() {
+        let notes = parse_args_from(["beep", "-s"]).unwrap();
+        assert_eq!(notes[0].stream_mode, Some(StreamMode::Lines));
+    }
+
+    #[test]
+    fn unknown_flag_errors() {
+        assert!(parse_args_from(["beep", "--unknown"]).is_err());
+    }
 }
