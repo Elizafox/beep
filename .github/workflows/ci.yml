@@ -73,7 +73,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install pandoc
-        run: sudo apt-get update && sudo apt-get install -y pandoc
+        run: |
+          PANDOC_VERSION=3.9.0.2
+          wget -q https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb
+          sudo dpkg -i pandoc-${PANDOC_VERSION}-1-amd64.deb
+          rm pandoc-${PANDOC_VERSION}-1-amd64.deb
 
       - name: Check man page is up to date
         run: make -C man check
