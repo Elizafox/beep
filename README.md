@@ -1,5 +1,5 @@
 # beep
-[![CI](https://github.com/Elizafox/beep/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Elizafox/beep/actions/workflows/ci.yml)
+[![CI](https://github.com/Elizafox/beep/actions/workflows/ci.yml/badge.svg)](https://github.com/Elizafox/beep/actions/workflows/ci.yml)
 [![Release](https://github.com/Elizafox/beep/actions/workflows/release.yml/badge.svg)](https://github.com/Elizafox/beep/actions/workflows/release.yml)
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](https://unlicense.org/)
 
