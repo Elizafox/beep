@@ -65,8 +65,7 @@ This is a faithful reimplementation of the [original `beep`](https://github.com/
 
 - Uses the default audio output device via [rodio](https://docs.rs/rodio) instead of the PC speaker. No root or `ioperm` needed.
 - Runs on Linux, macOS, Windows, and anywhere else rodio supports.
-- The `-e`/`--device` flag is not implemented (no underlying PC speaker to choose).
-- The `--verbose`/`--debug` flag is not implemented.
+- The `-e`/`--device` flag is accepted but not implemented (no underlying PC speaker to choose).
 
 ## Why any of this?
 The original `beep` is a wonderful tool that doesn't work on most modern systems, because most modern systems don't have PC speakers.

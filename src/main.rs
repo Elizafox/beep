@@ -68,7 +68,7 @@ unsafe fn install_sigpipe() -> nix::Result<()> {
     Ok(())
 }
 
-fn parse_args_from<I, S>(args: I) -> Result<Vec<Note>, lexopt::Error>
+fn parse_args_from<I, S>(args: I) -> Result<(bool, Vec<Note>), lexopt::Error>
 where
     I: IntoIterator<Item = S>,
     S: Into<std::ffi::OsString>,
@@ -76,6 +76,8 @@ where
     let mut notes = Vec::new();
     let mut current = Note::default();
     let mut parser = Parser::from_iter(args);
+    let mut verbose = false;
+    let mut warn_e = false;
 
     while let Some(arg) = parser.next()? {
         match arg {
@@ -100,19 +102,28 @@ where
                 print_help();
                 exit(0);
             }
-            Short('v') | Long("version") => {
+            Short('v') | Short('V') | Long("version") => {
                 print_version();
                 exit(0);
             }
+            Short('e') | Long("device") => {
+                let _ = parser.value()?;
+                warn_e = true;
+            }
+            Long("verbose") | Long("debug") => verbose = true,
             _ => return Err(arg.unexpected()),
         }
     }
 
+    if warn_e {
+        eprintln!("Warning: -e flag is ignored (no device to select)");
+    }
+
     notes.push(current);
-    Ok(notes)
+    Ok((verbose, notes))
 }
 
-fn parse_args() -> Result<Vec<Note>, lexopt::Error> {
+fn parse_args() -> Result<(bool, Vec<Note>), lexopt::Error> {
     parse_args_from(std::env::args_os())
 }
 
@@ -122,16 +133,26 @@ fn print_help() {
     println!("Usage: beep [OPTIONS]...");
     println!();
     println!("Options:");
-    println!("  -f FREQ    Frequency in Hz (default: 440)");
-    println!("  -l LEN     Tone length in ms (default: 200)");
-    println!("  -r REPS    Number of repetitions (default: 1)");
-    println!("  -d DELAY   Delay between beeps in ms (default: 100)");
-    println!("  -D DELAY   Same as -d, but delay after the final beep too");
-    println!("  -s         Beep after each line of stdin (echoes input)");
-    println!("  -c         Beep after each byte of stdin (echoes input)");
-    println!("  -n, --new  Start a new beep with default values");
-    println!("  -h, --help Show this help");
-    println!("Usage: beep [-f FREQ] [-l LEN] [-r REPS] [-d|-D DELAY] [-c] [-s] [-n ...]");
+    println!("  -f FREQ               Frequency in Hz (default: 440)");
+    println!("  -l LEN                Tone length in ms (default: 200)");
+    println!("  -r REPS               Number of repetitions (default: 1)");
+    println!("  -d DELAY              Delay between beeps in ms (default: 100)");
+    println!("  -D DELAY              Same as -d, but delay after the final beep too");
+    println!("  -s                    Beep after each line of stdin (echoes input)");
+    println!("  -c                    Beep after each byte of stdin (echoes input)");
+    println!("  -n, --new             Start a new beep with default values");
+    println!(
+        "  --verbose, --debug    Print beep parameters to stderr before playing (compatibility)"
+    );
+    println!("  -v, --version         Show version");
+    println!("  -h, --help            Show this help");
+    println!();
+    println!("Accepted for compatibility with the original beep (ignored):");
+    println!("  -e, --device DEVICE  (no PC speaker to select)");
+    println!();
+    println!(
+        "Usage: beep [-f FREQ] [-l LEN] [-r REPS] [-d|-D DELAY] [-c] [-s] [--verbose|--debug] [-n ...]"
+    );
 }
 
 fn print_version() {
@@ -140,7 +161,19 @@ fn print_version() {
     println!("This is free and unencumbered software released into the public domain.");
 }
 
-fn play_note(player: &Player, note: &Note) {
+fn play_note(player: &Player, note: &Note, verbose: bool) {
+    if verbose {
+        // Compatible with the output of the original beep program
+        eprintln!(
+            "[DEBUG] {} times {} ms beeps ({} delay between, {} after) @ {} Hz",
+            note.reps,
+            note.length,
+            note.delay,
+            if note.delay_after_last { note.delay } else { 0 },
+            note.freq,
+        );
+    }
+
     for i in 1..=note.reps {
         // The below filters are designed to somewhat faithfully reproduce the frequency response
         // of the beeper found in most x86 PCs that have them (most modern ones do not, or only
@@ -166,7 +199,7 @@ fn play_note(player: &Player, note: &Note) {
     }
 }
 
-fn stream_mode_lines(player: &Player, template: &Note) -> std::io::Result<()> {
+fn stream_mode_lines(player: &Player, template: &Note, verbose: bool) -> std::io::Result<()> {
     let stdin = stdin();
     let reader = BufReader::new(stdin.lock());
     let mut stdout = stdout().lock();
@@ -179,14 +212,14 @@ fn stream_mode_lines(player: &Player, template: &Note) -> std::io::Result<()> {
             }
             return Err(e);
         }
-        play_note(player, template);
+        play_note(player, template, verbose);
     }
     Ok(())
 }
 
 // False positive lint on stdin, which we want to keep held for the whole function
 #[allow(clippy::significant_drop_tightening)]
-fn stream_mode_chars(player: &Player, template: &Note) -> std::io::Result<()> {
+fn stream_mode_chars(player: &Player, template: &Note, verbose: bool) -> std::io::Result<()> {
     let mut stdin = stdin().lock();
     let mut stdout = stdout().lock();
     let mut buf = [0u8; 1];
@@ -201,7 +234,7 @@ fn stream_mode_chars(player: &Player, template: &Note) -> std::io::Result<()> {
             }
             return Err(e);
         }
-        play_note(player, template);
+        play_note(player, template, verbose);
     }
     Ok(())
 }
@@ -214,7 +247,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         install_sigpipe()?;
     }
 
-    let notes = parse_args()?;
+    let (verbose, notes) = parse_args()?;
 
     let mut handle = rodio::DeviceSinkBuilder::open_default_sink()?;
     handle.log_on_drop(false); // Ignore spurious warnings
@@ -222,9 +255,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for note in &notes {
         match note.stream_mode {
-            None => play_note(&player, note),
-            Some(StreamMode::Lines) => stream_mode_lines(&player, note)?,
-            Some(StreamMode::Chars) => stream_mode_chars(&player, note)?,
+            None => play_note(&player, note, verbose),
+            Some(StreamMode::Lines) => stream_mode_lines(&player, note, verbose)?,
+            Some(StreamMode::Chars) => stream_mode_chars(&player, note, verbose)?,
         }
     }
 
@@ -237,7 +270,8 @@ mod tests {
 
     #[test]
     fn default_note_when_no_args() {
-        let notes = parse_args_from::<_, &str>([]).unwrap();
+        let (verbose, notes) = parse_args_from::<_, &str>([]).unwrap();
+        assert!(!verbose);
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].freq, 440.0);
         assert_eq!(notes[0].length, 200);
@@ -245,14 +279,16 @@ mod tests {
 
     #[test]
     fn last_value_of_repeated_flag_wins() {
-        let notes = parse_args_from(["beep", "-f", "200", "-f", "300"]).unwrap();
+        let (verbose, notes) = parse_args_from(["beep", "-f", "200", "-f", "300"]).unwrap();
+        assert!(!verbose);
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].freq, 300.0);
     }
 
     #[test]
     fn new_flag_creates_separate_notes() {
-        let notes = parse_args_from(["beep", "-f", "500", "-n", "-f", "800"]).unwrap();
+        let (verbose, notes) = parse_args_from(["beep", "-f", "500", "-n", "-f", "800"]).unwrap();
+        assert!(!verbose);
         assert_eq!(notes.len(), 2);
         assert_eq!(notes[0].freq, 500.0);
         assert_eq!(notes[1].freq, 800.0);
@@ -262,38 +298,121 @@ mod tests {
 
     #[test]
     fn new_flag_resets_to_defaults() {
-        let notes =
+        let (verbose, notes) =
             parse_args_from(["beep", "-f", "500", "-l", "1000", "-n", "-f", "800"]).unwrap();
+        assert!(!verbose);
         assert_eq!(notes[1].length, 200); // not 1000 from first note
     }
 
     #[test]
     fn lowercase_d_disables_end_delay() {
-        let notes = parse_args_from(["beep", "-d", "50"]).unwrap();
+        let (verbose, notes) = parse_args_from(["beep", "-d", "50"]).unwrap();
+        assert!(!verbose);
         assert_eq!(notes[0].delay, 50);
         assert!(!notes[0].delay_after_last);
     }
 
     #[test]
     fn uppercase_d_enables_end_delay() {
-        let notes = parse_args_from(["beep", "-D", "50"]).unwrap();
+        let (verbose, notes) = parse_args_from(["beep", "-D", "50"]).unwrap();
+        assert!(!verbose);
         assert_eq!(notes[0].delay, 50);
         assert!(notes[0].delay_after_last);
     }
 
     #[test]
     fn mixing_lowercase_d_and_uppercase_d_last_wins() {
-        let notes = parse_args_from(["beep", "-d", "100", "-D", "50"]).unwrap();
+        let (verbose, notes) = parse_args_from(["beep", "-d", "100", "-D", "50"]).unwrap();
+        assert!(!verbose);
         assert!(notes[0].delay_after_last);
 
-        let notes = parse_args_from(["beep", "-D", "50", "-d", "100"]).unwrap();
+        let (verbose, notes) = parse_args_from(["beep", "-D", "50", "-d", "100"]).unwrap();
+        assert!(!verbose);
         assert!(!notes[0].delay_after_last);
     }
 
     #[test]
     fn stream_mode_s() {
-        let notes = parse_args_from(["beep", "-s"]).unwrap();
+        let (verbose, notes) = parse_args_from(["beep", "-s"]).unwrap();
+        assert!(!verbose);
         assert_eq!(notes[0].stream_mode, Some(StreamMode::Lines));
+    }
+
+    #[test]
+    fn e_consumes_device() {
+        let (verbose, notes) = parse_args_from(["beep", "-e", "foo", "-f", "500"]).unwrap();
+        assert!(!verbose);
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].freq, 500.0);
+        assert_eq!(notes[0].length, 200);
+    }
+
+    #[test]
+    fn verbose_set() {
+        let (verbose, notes) = parse_args_from(["beep", "--verbose"]).unwrap();
+        assert!(verbose);
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].freq, 440.0);
+        assert_eq!(notes[0].length, 200);
+    }
+
+    #[test]
+    fn verbose_set_debug() {
+        let (verbose, notes) = parse_args_from(["beep", "--debug"]).unwrap();
+        assert!(verbose);
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].freq, 440.0);
+        assert_eq!(notes[0].length, 200);
+    }
+
+    #[test]
+    fn verbose_set_with_params() {
+        let (verbose, notes) = parse_args_from(["beep", "--verbose", "-f", "500"]).unwrap();
+        assert!(verbose);
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].freq, 500.0);
+        assert_eq!(notes[0].length, 200);
+    }
+
+    #[test]
+    fn verbose_set_with_params_debug() {
+        let (verbose, notes) = parse_args_from(["beep", "--debug", "-f", "500"]).unwrap();
+        assert!(verbose);
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].freq, 500.0);
+        assert_eq!(notes[0].length, 200);
+    }
+
+    #[test]
+    fn verbose_set_after_n() {
+        let (verbose, notes) =
+            parse_args_from(["beep", "-f", "500", "-n", "-f", "300", "--verbose"]).unwrap();
+        assert!(verbose);
+        assert_eq!(notes.len(), 2);
+        assert_eq!(notes[0].freq, 500.0);
+        assert_eq!(notes[0].length, 200);
+        assert_eq!(notes[1].freq, 300.0);
+        assert_eq!(notes[1].length, 200);
+    }
+
+    #[test]
+    fn verbose_set_after_n_debug() {
+        let (verbose, notes) =
+            parse_args_from(["beep", "-f", "500", "-n", "-f", "300", "--debug"]).unwrap();
+        assert!(verbose);
+        assert_eq!(notes.len(), 2);
+        assert_eq!(notes[0].freq, 500.0);
+        assert_eq!(notes[0].length, 200);
+        assert_eq!(notes[1].freq, 300.0);
+        assert_eq!(notes[1].length, 200);
+    }
+
+    #[test]
+    fn verbose_debug_both_set() {
+        let (verbose, notes) = parse_args_from(["beep", "--verbose", "--debug"]).unwrap();
+        assert!(verbose);
+        assert_eq!(notes[0].freq, 440.0);
+        assert_eq!(notes[0].length, 200);
     }
 
     #[test]

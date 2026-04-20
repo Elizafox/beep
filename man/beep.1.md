@@ -50,7 +50,13 @@ If an option is specified more than once, the last occurrence wins. So **beep -f
 **-n**, **\--new**
 :   Start a new beep with default values. All following options apply to the new beep. This allows chaining multiple different beeps in a single invocation. See EXAMPLES.
 
-**-v**, **\--version**
+**-e** *DEVICE*, **\--device**=*DEVICE*
+:   Accepted for compatibility with the original *beep*; ignored. There is no underlying PC speaker device to select.
+
+**\--verbose**, **\--debug**
+:   Print a diagnostic line to stderr before each beep, showing the frequency, length, repetitions, and delay. Useful when debugging scripts or chained beep invocations. The output is compatible with the original *beep* program.
+
+**-v**, **-V**, **\--version**
 :   Print version and exit.
 
 **-h**, **\--help**
@@ -91,9 +97,7 @@ Beep on completion of a long-running command:
 On Unix, *beep* resets SIGPIPE to its default disposition, so it terminates silently when a downstream process in a pipeline closes stdin.
 
 # LIMITATIONS
-*beep* does not support the **-e**/**\--device** flag of the original, as there is no underlying PC speaker to select; audio output goes to the system default.
-
-The **\--verbose**/**\--debug** flag of the original is not implemented.
+For compatibility with the original *beep*, the **-e**/**\--device** flag is accepted but does nothing, as there is no underlying PC speaker to select.
 
 # SEE ALSO
 The original *beep* utility: <https://github.com/johnath/beep>
