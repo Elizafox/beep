@@ -1,0 +1,26 @@
+[package]
+name = "beep"
+version = "0.1.0"
+edition = "2024"
+authors = ["Elizabeth Ashford <elizabeth.jennifer.myers@gmail.com>"]
+license = "Unlicense"
+readme = "README.md"
+description = "A cross-platform reimplementation of the classic Unix beep utility"
+repository = "https://github.com/Elizafox/beep"
+keywords = ["beep", "cli", "audio", "sound", "notification"]
+categories = ["command-line-utilities", "multimedia::audio"]
+
+[dependencies]
+cpal = "0.17.3"
+lexopt = "0.3.2"
+rodio = "0.22.2"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", features = ["signal"] }
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = 1 }
+cargo = { level = "warn", priority = -1 }
+multiple_crate_versions = "allow"
