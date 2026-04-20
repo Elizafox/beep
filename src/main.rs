@@ -102,7 +102,7 @@ where
                 print_help();
                 exit(0);
             }
-            Short('v') | Short('V') | Long("version") => {
+            Short('v' | 'V') | Long("version") => {
                 print_version();
                 exit(0);
             }
@@ -110,7 +110,7 @@ where
                 let _ = parser.value()?;
                 warn_e = true;
             }
-            Long("verbose") | Long("debug") => verbose = true,
+            Long("verbose" | "debug") => verbose = true,
             _ => return Err(arg.unexpected()),
         }
     }
