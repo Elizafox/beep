@@ -1,4 +1,8 @@
 # beep
+[![CI](https://github.com/Elizafox/beep/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Elizafox/beep/actions/workflows/ci.yml)
+[![Release](https://github.com/Elizafox/beep/actions/workflows/release.yml/badge.svg)](https://github.com/Elizafox/beep/actions/workflows/release.yml)
+[![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](https://unlicense.org/)
+
 A cross-platform reimplementation of the classic Unix [`beep`](https://github.com/johnath/beep) utility, written in Rust.
 
 It uses the system's audio output rather than the PC speaker, so it works on modern machines.
