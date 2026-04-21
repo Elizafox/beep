@@ -41,7 +41,9 @@ beep -f 523 -l 100 -n -f 659 -l 100 -n -f 784 -l 200   # chord sequence
 | `-s` | Beep after each line of stdin (echoes input to stdout) | — |
 | `-c` | Beep after each byte of stdin (echoes input to stdout) | — |
 | `-n`, `--new` | Start a new beep with default values | — |
+| `-e DEVICE`, `--device DEVICE` | Compatibility with original `beep`, ignored | — |
 | `-v`, `-V`, `--version` | Print version | — |
+| `--verbose`, `--debug` | Print debugging information | — | 
 | `-h`, `--help` | Print help | — |
 
 ### Stream modes
